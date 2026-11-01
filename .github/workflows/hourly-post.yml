@@ -1,7 +1,7 @@
 name: Hourly Instagram post
 on:
   schedule:
-    - cron: "20 * * * *"   # :20 UTC = :50 IST, ten minutes before each IST hour; the script waits for the hour
+    - cron: "*/5 * * * *"   # every 5 minutes; the script posts each IST hour once, as soon as the hour starts
   workflow_dispatch:
     inputs:
       slot:
@@ -16,7 +16,7 @@ permissions: { contents: write }
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Post to Instagram

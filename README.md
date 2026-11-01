@@ -44,6 +44,6 @@ GitHub's own timer is best-effort and can skip or delay hourly runs by hours. A 
 GitHub's timer stays on as a backup; the bot never posts the same hour twice.
 
 ## Notes
-- The workflow starts at :50 IST and waits for the hour. GitHub sometimes starts scheduled jobs late; if it starts after the hour, it posts right away (up to :44).
+- The workflow checks every 5 minutes and posts each hour's question once, as soon as it can after the hour starts (up to :44). GitHub's timer can lag, so posts usually go out between :00 and :10.
 - Instagram allows 100 API posts per account per 24 hours; we use 24.
 - Max 5 hashtags per post.

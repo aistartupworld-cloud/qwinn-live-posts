@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Post the current hour's Qwinn Live question to Instagram.
 
-Runs from GitHub Actions a few minutes before each hour. Picks the slot for the
-coming hour (IST), waits until the hour starts, then publishes
+Runs from GitHub Actions every 5 minutes. In the first 45 minutes of each IST
+hour it publishes
 posts/<YYYY-MM-DD>/<HH>.jpg with the caption in posts/<YYYY-MM-DD>/<HH>.txt
 through the Instagram API with Instagram Login. Already-posted slots are kept
 in posted.json, so a rerun never double-posts.
@@ -32,23 +32,25 @@ def call(method, path, **params):
 
 
 def pick_slot(now):
-    # Run at :50 to :59 -> the coming hour. Run at :00 to :44 (late runner) -> this hour.
-    slot = now.replace(minute=0, second=0, microsecond=0)
+    # Runs every few minutes; posts the current IST hour's question if it is
+    # :00 to :44 and that hour has not been posted yet.
     if now.minute >= 45:
-        slot += dt.timedelta(hours=1)
-    return slot
+        return None
+    return now.replace(minute=0, second=0, microsecond=0)
 
 
 def main():
     token = os.environ.get("IG_ACCESS_TOKEN", "")
     if not token and os.environ.get("DRY_RUN") != "1":
-        sys.exit("IG_ACCESS_TOKEN secret is not set: add it under Settings > Secrets and variables > Actions")
+        print("::warning::IG_ACCESS_TOKEN secret is not set yet (Settings > Secrets and variables > Actions); nothing posted"); return
     ig_id = os.environ.get("IG_USER_ID") or "me"
     repo = os.environ["GITHUB_REPOSITORY"]  # owner/name, must be public for image_url
     branch = os.environ.get("POST_BRANCH", "main")
     dry = os.environ.get("DRY_RUN") == "1"
     now = dt.datetime.now(IST)
     slot = pick_slot(now) if not os.environ.get("SLOT") else dt.datetime.strptime(os.environ["SLOT"], "%Y-%m-%d %H").replace(tzinfo=IST)
+    if slot is None:
+        print("Past :44 of the hour; the next hour's post goes out after the hour starts"); return
     key = slot.strftime("%Y-%m-%d %H")
     cfg = json.load(open(os.path.join(ROOT, "config.json")))
     start_at, approved = cfg.get("start_at", ""), cfg.get("approved_through", "")
@@ -76,9 +78,6 @@ def main():
         if status == "FINISHED": break
         if status in ("ERROR", "EXPIRED"): sys.exit(f"Container {container} failed: {status}")
         time.sleep(20)
-    wait = (slot - dt.datetime.now(IST)).total_seconds()
-    if wait > 0:
-        print(f"Waiting {int(wait)}s for {key}:00 IST"); time.sleep(wait)
     media = call("POST", f"{ig_id}/media_publish", creation_id=container, access_token=token)["id"]
     log[key] = media
     json.dump(log, open(log_path, "w"), indent=1, sort_keys=True)
