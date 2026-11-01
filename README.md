@@ -4,6 +4,7 @@ GitHub Actions posts one quiz question to Instagram every hour, on the hour (IST
 
 - `posts/YYYY-MM-DD/HH.jpg` + `HH.txt`: the image (1080×1350, 4:5, JPEG, the API does not accept 3:4) and caption for that IST hour.
 - `config.json` → `start_at`: the first slot the bot may post (`YYYY-MM-DD HH`, IST). Slots before it are skipped, so posts you already scheduled in Business Suite are not doubled.
+- `config.json` → `approved_through`: the last slot the owner has approved. New batches are added to `posts/` ahead of time but only go out once this date is moved forward.
 - `posted.json`: slots already published (the bot never posts a slot twice).
 - `tools/render.js`: makes images and captions from a questions file.
 
@@ -31,6 +32,16 @@ Never paste tokens into chat or commit them.
 **Actions → Hourly Instagram post → Run workflow**, with `dry_run` = 1. The log shows which image and caption it would post. Then it runs on its own every hour.
 
 To post one slot immediately: Run workflow with `slot` = `2026-11-01 14` and `dry_run` = 0.
+
+## Make it post on time (recommended)
+GitHub's own timer is best-effort and can skip or delay hourly runs by hours. A free external timer is far more punctual:
+1. Create a fine-grained GitHub token for this repo with **Actions: read and write** (github.com → Settings → Developer settings → Fine-grained tokens).
+2. At cron-job.org (free), create a job:
+   - URL: `https://api.github.com/repos/aistartupworld-cloud/qwinn-live-posts/actions/workflows/hourly-post.yml/dispatches`
+   - Schedule: every hour at minute 50, time zone Asia/Kolkata
+   - Method: POST, body: `{"ref":"main"}`
+   - Headers: `Authorization: Bearer <your token>`, `Accept: application/vnd.github+json`
+GitHub's timer stays on as a backup; the bot never posts the same hour twice.
 
 ## Notes
 - The workflow starts at :50 IST and waits for the hour. GitHub sometimes starts scheduled jobs late; if it starts after the hour, it posts right away (up to :44).

@@ -25,7 +25,9 @@ def call(method, path, **params):
         with urllib.request.urlopen(req, timeout=60) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace").replace(params.get("access_token", "") or "x", "***")
+        body = e.read().decode(errors="replace")
+        tok = params.get("access_token")
+        if tok: body = body.replace(tok, "***")
         sys.exit(f"Instagram API error {e.code} on {path}: {body}")
 
 
@@ -38,7 +40,9 @@ def pick_slot(now):
 
 
 def main():
-    token = os.environ["IG_ACCESS_TOKEN"]
+    token = os.environ.get("IG_ACCESS_TOKEN", "")
+    if not token and os.environ.get("DRY_RUN") != "1":
+        sys.exit("IG_ACCESS_TOKEN secret is not set: add it under Settings > Secrets and variables > Actions")
     ig_id = os.environ.get("IG_USER_ID") or "me"
     repo = os.environ["GITHUB_REPOSITORY"]  # owner/name, must be public for image_url
     branch = os.environ.get("POST_BRANCH", "main")
@@ -46,9 +50,12 @@ def main():
     now = dt.datetime.now(IST)
     slot = pick_slot(now) if not os.environ.get("SLOT") else dt.datetime.strptime(os.environ["SLOT"], "%Y-%m-%d %H").replace(tzinfo=IST)
     key = slot.strftime("%Y-%m-%d %H")
-    start_at = json.load(open(os.path.join(ROOT, "config.json"))).get("start_at", "")
+    cfg = json.load(open(os.path.join(ROOT, "config.json")))
+    start_at, approved = cfg.get("start_at", ""), cfg.get("approved_through", "")
     if key < start_at:
         print(f"{key} is before start_at {start_at} (posted by hand or Business Suite); skipping"); return
+    if key > approved:
+        print(f"{key} is after approved_through {approved}: waiting for owner approval; skipping"); return
     rel = f"posts/{slot:%Y-%m-%d}/{slot:%H}"
     img, cap = os.path.join(ROOT, rel + ".jpg"), os.path.join(ROOT, rel + ".txt")
     if not os.path.exists(img):
