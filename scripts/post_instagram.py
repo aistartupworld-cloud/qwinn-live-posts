@@ -9,7 +9,9 @@ in posted.json, so a rerun never double-posts.
 """
 import datetime as dt, json, os, sys, time, urllib.parse, urllib.request
 
-API = "https://graph.instagram.com/v26.0"
+API_IG = "https://graph.instagram.com/v26.0"   # tokens from "Instagram login" (start with IG)
+API_FB = "https://graph.facebook.com/v26.0"    # system-user / Facebook login tokens (start with EAA)
+API = API_IG
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -40,10 +42,17 @@ def pick_slot(now):
 
 
 def main():
-    token = os.environ.get("IG_ACCESS_TOKEN", "")
+    global API
+    token = os.environ.get("IG_ACCESS_TOKEN", "").strip()
+    if token.startswith("EAA"):
+        API = API_FB
     if not token and os.environ.get("DRY_RUN") != "1":
         print("::warning::IG_ACCESS_TOKEN secret is not set yet (Settings > Secrets and variables > Actions); nothing posted"); return
-    ig_id = os.environ.get("IG_USER_ID") or "me"
+    ig_id = (os.environ.get("IG_USER_ID") or "").strip() or "me"
+    if os.environ.get("CHECK_ONLY") == "1":
+        me = call("GET", ig_id, fields="username", access_token=token)
+        lim = call("GET", f"{ig_id}/content_publishing_limit", fields="quota_usage,config", access_token=token)
+        print(f"Token OK for @{me.get('username')} via {API}; publishing limit: {json.dumps(lim)}"); return
     repo = os.environ["GITHUB_REPOSITORY"]  # owner/name, must be public for image_url
     branch = os.environ.get("POST_BRANCH", "main")
     dry = os.environ.get("DRY_RUN") == "1"
