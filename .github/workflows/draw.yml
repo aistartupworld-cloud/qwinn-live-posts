@@ -1,0 +1,31 @@
+name: Nightly draw (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Draw night, IST, e.g. 2026-11-05 (empty = whatever is due)"
+        required: false
+      dry_run:
+        description: "1 = only count comments and entries, pick no winner, save nothing"
+        required: false
+        default: "1"
+concurrency: { group: draw, cancel-in-progress: false }
+permissions: { contents: write }
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the draw
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          DRAW_DATE: ${{ inputs.date }}
+          DRAW_DRY: ${{ inputs.dry_run }}
+        run: python3 scripts/draw.py | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Save result
+        run: |
+          git config user.name "qwinn-bot"; git config user.email "qwinn-bot@users.noreply.github.com"
+          git add draws answers 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "Save draw result" && git pull --rebase && git push)
