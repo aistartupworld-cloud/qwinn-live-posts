@@ -33,17 +33,12 @@ Never paste tokens into chat or commit them.
 
 To post one slot immediately: Run workflow with `slot` = `2026-11-01 14` and `dry_run` = 0.
 
-## Make it post on time (recommended)
-GitHub's own timer is best-effort and can skip or delay hourly runs by hours. A free external timer is far more punctual:
-1. Create a fine-grained GitHub token for this repo with **Actions: read and write** (github.com → Settings → Developer settings → Fine-grained tokens).
-2. At cron-job.org (free), create a job:
-   - URL: `https://api.github.com/repos/aistartupworld-cloud/qwinn-live-posts/actions/workflows/hourly-post.yml/dispatches`
-   - Schedule: every hour at minute 50, time zone Asia/Kolkata
-   - Method: POST, body: `{"ref":"main"}`
-   - Headers: `Authorization: Bearer <your token>`, `Accept: application/vnd.github+json`
-GitHub's timer stays on as a backup; the bot never posts the same hour twice.
+## How posting is timed
+`Poster loop` keeps one GitHub Actions runner alive that checks every minute and posts each IST hour's approved question as soon as the hour starts. Each run lasts about 5h45m and then starts the next run itself, so posting does not depend on GitHub's own timer (which can skip hours). An hourly schedule restarts the chain if it ever breaks. Public repositories get these minutes free.
+
+To post one slot by hand: Actions → "Hourly Instagram post (manual)" → Run workflow, with `slot` = `2026-11-06 14`.
 
 ## Notes
-- The workflow checks every 5 minutes and posts each hour's question once, as soon as it can after the hour starts (up to :44). GitHub's timer can lag, so posts usually go out between :00 and :10.
+- Each hour's question is posted once, within about a minute of the hour (any time up to :44 if something was delayed).
 - Instagram allows 100 API posts per account per 24 hours; we use 24.
 - Max 5 hashtags per post.

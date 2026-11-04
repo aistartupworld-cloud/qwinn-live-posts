@@ -1,0 +1,36 @@
+name: Poster loop
+# Keeps one runner alive that checks every minute and posts each IST hour's
+# approved question as soon as the hour starts. A run lasts about 5h45m, then
+# starts the next run itself, so posting does not depend on GitHub's timer.
+# The hourly schedule below is only a backup to restart the chain if it breaks.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+concurrency: { group: poster, cancel-in-progress: false }
+permissions: { contents: write, actions: write }
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - name: Post every hour for about 5h45m
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        run: |
+          git config user.name "qwinn-bot"; git config user.email "qwinn-bot@users.noreply.github.com"
+          end=$(( $(date +%s) + 345*60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            git pull -q --rebase origin main || true
+            if python3 scripts/post_instagram.py; then pause=60; else echo "::warning::post attempt failed, retrying in 5 minutes"; pause=300; fi
+            if ! git diff --quiet posted.json 2>/dev/null || [ -n "$(git status --porcelain posted.json)" ]; then
+              git add posted.json && git commit -qm "Log posted slot" && (git push -q || (git pull -q --rebase origin main && git push -q))
+            fi
+            sleep "$pause"
+          done
+      - name: Start the next run
+        if: always()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh workflow run poster-loop.yml --repo "$GITHUB_REPOSITORY" --ref main

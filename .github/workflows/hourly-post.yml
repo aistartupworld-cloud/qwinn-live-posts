@@ -1,7 +1,5 @@
-name: Hourly Instagram post
+name: Hourly Instagram post (manual)
 on:
-  schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes; the script posts each IST hour once, as soon as the hour starts
   workflow_dispatch:
     inputs:
       slot:
@@ -15,7 +13,7 @@ on:
         description: "1 = only print what would be posted"
         required: false
         default: "0"
-concurrency: { group: hourly-post, cancel-in-progress: false }
+concurrency: { group: poster, cancel-in-progress: false }
 permissions: { contents: write }
 jobs:
   post:
