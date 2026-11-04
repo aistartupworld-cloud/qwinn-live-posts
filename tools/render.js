@@ -28,18 +28,8 @@ h1{font-family:'Bricolage Grotesque';font-weight:800;font-size:${qs}px;line-heig
 function caption(q){const L=label(q.slot);const d=drawNote(q.slot);
  return `⏰ ${L.time} question | ${q.topic}
 
-${q.q}
-
-A) ${q.o[0]}
-B) ${q.o[1]}
-C) ${q.o[2]}
-D) ${q.o[3]}
-
 💬 Comment your answer: A, B, C or D (one answer per person; your first comment counts).
 🎁 Every correct answer is one entry in the ₹100 gift card draw at 10 PM IST ${d.short} (${d.date}).
-✅ Free to enter, always. We will never ask for money, OTPs, passwords or bank details.
-
-This contest is not sponsored, endorsed or administered by, or associated with, Instagram or Meta.
 
 ${q.tags.join(' ')}`;}
 (async()=>{const b=await chromium.launch();const p=await b.newPage();let caps=[],csv=['file,slot_ist,slot_utc,topic,question,correct,correct_text'];
