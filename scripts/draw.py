@@ -100,9 +100,11 @@ def draw(day, dry):
     close = dt.datetime.combine(day, dt.time(22), IST)
     me = get(IG_ID, fields="username").get("username", "")
     answers = {} if dry and not glob.glob(os.path.join(ANS, "*.dat")) else load_answers()
-    posts = []
+    posts, seen = [], 0
     for m in pages(f"{IG_ID}/media", fields="id,timestamp,caption", limit=50):
-        s = slot_of(m)
+        s = slot_of(m); seen += 1
+        if dry and seen <= 5:
+            print(f"  recent post {m['timestamp']} read as {s:%d %b %I %p} IST")
         if s < start - dt.timedelta(days=1):
             break
         if start <= s < close:
@@ -130,7 +132,7 @@ def draw(day, dry):
                 entries.append((u, key)); ok += 1
         report.append(f"{key} IST: {len(first)} people commented, {ok} correct" + ("" if right else " (no answer on file, not counted)"))
     print(f"Draw for {day} (posts {start:%d %b %I %p} to {close - dt.timedelta(hours=1):%d %b %I %p} IST, comments before {close:%d %b %I %p})")
-    print("\n".join(report) or "No posts found in the window")
+    print("\n".join(report) or f"No posts found in the window ({seen} posts checked)")
     result = {"date": str(day), "posts_counted": len(posts), "people": len(people), "entries": len(entries),
               "drawn_at_ist": dt.datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")}
     if entries:
