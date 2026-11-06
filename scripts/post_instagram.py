@@ -65,6 +65,9 @@ def main():
     start_at, approved = cfg.get("start_at", ""), cfg.get("approved_through", "")
     if key < start_at:
         print(f"{key} is before start_at {start_at} (posted by hand or Business Suite); skipping"); return
+    lo, hi = cfg.get("post_hours", [0, 23])
+    if not lo <= slot.hour <= hi:
+        print(f"{key} is outside posting hours {lo}:00 to {hi}:00 IST; skipping"); return
     if key > approved:
         print(f"{key} is after approved_through {approved}: waiting for owner approval; skipping"); return
     rel = f"posts/{slot:%Y-%m-%d}/{slot:%H}"
