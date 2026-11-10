@@ -56,6 +56,9 @@ def main():
     repo = os.environ["GITHUB_REPOSITORY"]  # owner/name, must be public for image_url
     branch = os.environ.get("POST_BRANCH", "main")
     dry = os.environ.get("DRY_RUN") == "1"
+    ann = os.environ.get("ANNOUNCE", "").strip()
+    if ann:  # one-off post, e.g. posts/announce/2026-11-06-winner (owner-approved), outside the hourly schedule
+        return publish(ig_id, token, repo, branch, dry, ann, "announce " + ann)
     now = dt.datetime.now(IST)
     slot = pick_slot(now) if not os.environ.get("SLOT") else dt.datetime.strptime(os.environ["SLOT"], "%Y-%m-%d %H").replace(tzinfo=IST)
     if slot is None:
@@ -71,6 +74,10 @@ def main():
     if key > approved:
         print(f"{key} is after approved_through {approved}: waiting for owner approval; skipping"); return
     rel = f"posts/{slot:%Y-%m-%d}/{slot:%H}"
+    return publish(ig_id, token, repo, branch, dry, rel, key)
+
+
+def publish(ig_id, token, repo, branch, dry, rel, key):
     img, cap = os.path.join(ROOT, rel + ".jpg"), os.path.join(ROOT, rel + ".txt")
     if not os.path.exists(img):
         print(f"No post for {key} ({rel}.jpg missing); nothing to do"); return
