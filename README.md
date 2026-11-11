@@ -38,6 +38,13 @@ To post one slot immediately: Run workflow with `slot` = `2026-11-01 14` and `dr
 
 To post one slot by hand: Actions → "Hourly Instagram post (manual)" → Run workflow, with `slot` = `2026-11-06 14`.
 
+## Growth features
+- **Daily Reel**: put `posts/reels/YYYY-MM-DD/HH.mp4` (9:16, H.264 + AAC, with its music baked in) and `HH.txt` (caption). The loop posts it as a Reel, shared to the feed, at that IST hour, within `approved_through`. It is logged as `reel YYYY-MM-DD HH` in `posted.json`.
+- **Winner Story at 10:05 PM** (`scripts/winner_story.py`, config `winner_story`): after the 10 PM draw picks a winner, it draws a Story image with the winner's handle into `posts/stories/`, pushes it, and posts it as a Story. No winner, no Story. Test the image with `DRY_RUN=1 STORY_DATE=2026-11-06 python3 scripts/winner_story.py`.
+- **Tag-a-friend bonus** (config `tag_bonus`, Wednesdays from 18 Nov): a correct comment that also tags another account counts as 2 entries.
+- **Friday mega draw** (config `mega_draw`, Fridays from 20 Nov, ₹200): besides the nightly winner, one more winner is picked from every correct entry of the 7 nights ending that Friday. Tonight's nightly winner is left out unless nobody else entered. Saved as `mega_winner` in `draws/<date>.json` and shown on the winner Story.
+- Gift cards are still sent by the owner by hand.
+
 ## Notes
 - Each hour's question is posted once, within about a minute of the hour (any time up to :44 if something was delayed).
 - Instagram allows 100 API posts per account per 24 hours; we use 24.

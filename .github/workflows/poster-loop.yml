@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
+      - name: Install Pillow (draws the winner Story image)
+        run: pip install -q pillow
       - name: Post every hour for about 5h45m
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
@@ -26,6 +28,7 @@ jobs:
             git pull -q --rebase origin main || true
             if python3 scripts/post_instagram.py; then pause=60; else echo "::warning::post attempt failed, retrying in 5 minutes"; pause=300; fi
             python3 scripts/draw.py || echo "::warning::draw step failed, retrying next minute"
+            python3 scripts/winner_story.py || echo "::warning::winner Story failed, retrying next minute"
             if [ -n "$(git status --porcelain posted.json draws answers)" ]; then
               git add posted.json draws answers && git commit -qm "Log posted slot / draw result" && (git push -q || (git pull -q --rebase origin main && git push -q))
             fi

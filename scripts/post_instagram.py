@@ -66,6 +66,9 @@ def main():
     key = slot.strftime("%Y-%m-%d %H")
     cfg = json.load(open(os.path.join(ROOT, "config.json")))
     start_at, approved = cfg.get("start_at", ""), cfg.get("approved_through", "")
+    reel = f"posts/reels/{slot:%Y-%m-%d}/{slot:%H}"
+    if os.path.exists(os.path.join(ROOT, reel + ".mp4")) and start_at <= key <= approved:
+        publish(ig_id, token, repo, branch, dry, reel, "reel " + key, video=True)
     if key < start_at:
         print(f"{key} is before start_at {start_at} (posted by hand or Business Suite); skipping"); return
     lo, hi = cfg.get("post_hours", [0, 23])
@@ -80,22 +83,28 @@ def main():
     return publish(ig_id, token, repo, branch, dry, rel, key)
 
 
-def publish(ig_id, token, repo, branch, dry, rel, key):
-    img, cap = os.path.join(ROOT, rel + ".jpg"), os.path.join(ROOT, rel + ".txt")
+def publish(ig_id, token, repo, branch, dry, rel, key, video=False):
+    """Publish rel.jpg (feed photo) or, with video=True, rel.mp4 as a Reel shared to the feed."""
+    ext = ".mp4" if video else ".jpg"
+    img, cap = os.path.join(ROOT, rel + ext), os.path.join(ROOT, rel + ".txt")
     if not os.path.exists(img):
-        print(f"No post for {key} ({rel}.jpg missing); nothing to do"); return
+        print(f"No post for {key} ({rel}{ext} missing); nothing to do"); return
     log_path = os.path.join(ROOT, "posted.json")
     log = json.load(open(log_path)) if os.path.exists(log_path) else {}
     if key in log:
         print(f"{key} already posted as {log[key]}"); return
     caption = open(cap, encoding="utf-8").read().strip()
-    image_url = f"https://raw.githubusercontent.com/{repo}/{branch}/{rel}.jpg"
-    print(f"Slot {key} IST, image {image_url}")
+    image_url = f"https://raw.githubusercontent.com/{repo}/{branch}/{rel}{ext}"
+    print(f"Slot {key} IST, {'video' if video else 'image'} {image_url}")
     if dry:
         print("DRY_RUN: caption follows\n" + caption); return
 
-    container = call("POST", f"{ig_id}/media", image_url=image_url, caption=caption, access_token=token)["id"]
-    for _ in range(10):
+    if video:
+        container = call("POST", f"{ig_id}/media", media_type="REELS", video_url=image_url, caption=caption,
+                         share_to_feed="true", access_token=token)["id"]
+    else:
+        container = call("POST", f"{ig_id}/media", image_url=image_url, caption=caption, access_token=token)["id"]
+    for _ in range(30 if video else 10):
         status = call("GET", container, fields="status_code", access_token=token).get("status_code")
         if status == "FINISHED": break
         if status in ("ERROR", "EXPIRED"): sys.exit(f"Container {container} failed: {status}")

@@ -6,5 +6,20 @@
   12,
   20
  ],
- "post_every": 2
+ "post_every": 2,
+ "winner_story": {
+  "from": "2026-11-12",
+  "at": "22:05"
+ },
+ "tag_bonus": {
+  "weekday": 2,
+  "from": "2026-11-18",
+  "_note": "weekday: 0=Mon ... 2=Wed ... 6=Sun"
+ },
+ "mega_draw": {
+  "weekday": 4,
+  "from": "2026-11-20",
+  "prize": "₹200",
+  "_note": "Fridays; every correct answer of the 7 nights ending that Friday is an entry"
+ }
 }
