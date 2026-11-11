@@ -8,6 +8,10 @@ At 10 PM IST (run every minute by the Poster loop) it:
   4. counts one entry per correct answer (A, B, C or D),
   5. picks one entry at random and saves the result in draws/<date>.json.
 
+On the tag-a-friend day (config "tag_bonus"), a correct comment that also tags
+someone else counts twice. On the mega draw day (config "mega_draw", Fridays), it
+also picks a weekly winner from every entry of the 7 nights ending tonight.
+
 Answers are never stored readable in this public repo. They are encrypted to a
 key pair whose private half is itself encrypted with the IG_ACCESS_TOKEN secret,
 so only this workflow can read them.
@@ -95,11 +99,20 @@ def slot_of(media):
     return (t + dt.timedelta(minutes=30)).replace(minute=0, second=0, microsecond=0)
 
 
-def draw(day, dry):
-    start = dt.datetime.combine(day - dt.timedelta(days=1), dt.time(22), IST)
-    close = dt.datetime.combine(day, dt.time(22), IST)
-    me = get(IG_ID, fields="username").get("username", "")
-    answers = {} if dry and not glob.glob(os.path.join(ANS, "*.dat")) else load_answers()
+MENTION = re.compile(r"@([A-Za-z0-9._]{2,30})")
+
+
+def load_cfg():
+    return json.load(open(os.path.join(ROOT, "config.json")))
+
+
+def tag_bonus_on(cfg, slot):
+    """True if posts in this slot give a bonus entry for tagging a friend (config "tag_bonus")."""
+    tb = cfg.get("tag_bonus") or {}
+    return bool(tb) and str(slot.date()) >= tb.get("from", "9999-12-31") and slot.weekday() == tb.get("weekday", -1)
+
+
+def find_posts(start, close, dry):
     posts, seen = [], 0
     for m in pages(f"{IG_ID}/media", fields="id,timestamp,caption", limit=50):
         s = slot_of(m); seen += 1
@@ -110,11 +123,19 @@ def draw(day, dry):
         if start <= s < close:
             posts.append((s, m["id"]))
     posts.sort()
+    return posts, seen
+
+
+def count_entries(posts, close, answers, me, cfg, comments_of=None):
+    """One entry per correct first comment; +1 bonus entry on tag-a-friend days when
+    that comment also tags someone else. Returns (entries, people, report)."""
+    comments_of = comments_of or (lambda mid: pages(f"{mid}/comments", fields="id,text,timestamp,username", limit=100))
     entries, people, report = [], set(), []
     for s, mid in posts:
         key = s.strftime("%Y-%m-%d %H")
+        bonus_day = tag_bonus_on(cfg, s)
         first = {}
-        for c in pages(f"{mid}/comments", fields="id,text,timestamp,username", limit=100):
+        for c in comments_of(mid):
             ct = dt.datetime.strptime(c["timestamp"], "%Y-%m-%dT%H:%M:%S%z")
             u = (c.get("username") or "").lower()
             if not u or u == me.lower() or ct >= close:
@@ -122,7 +143,7 @@ def draw(day, dry):
             if u not in first or ct < first[u][0]:
                 first[u] = (ct, c.get("text") or "")
         right = answers.get(key)
-        ok = 0
+        ok = bonus = 0
         for u, (_, text) in first.items():
             people.add(u)
             m = PICK.match(text.strip().upper())
@@ -130,22 +151,61 @@ def draw(day, dry):
                 m = None  # more than one answer in the comment: no entry
             if right and m and m.group(1) == right:
                 entries.append((u, key)); ok += 1
-        report.append(f"{key} IST: {len(first)} people commented, {ok} correct" + ("" if right else " (no answer on file, not counted)"))
+                tagged = {t.lower() for t in MENTION.findall(text)} - {u, me.lower()}
+                if bonus_day and tagged:
+                    entries.append((u, key)); bonus += 1
+        report.append(f"{key} IST: {len(first)} people commented, {ok} correct"
+                      + (f", {bonus} tag-a-friend bonus entries" if bonus_day else "")
+                      + ("" if right else " (no answer on file, not counted)"))
+    return entries, people, report
+
+
+def mega_due(cfg, day):
+    md = cfg.get("mega_draw") or {}
+    return bool(md) and str(day) >= md.get("from", "9999-12-31") and day.weekday() == md.get("weekday", -1)
+
+
+def draw(day, dry):
+    cfg = load_cfg()
+    start = dt.datetime.combine(day - dt.timedelta(days=1), dt.time(22), IST)
+    close = dt.datetime.combine(day, dt.time(22), IST)
+    me = get(IG_ID, fields="username").get("username", "")
+    answers = {} if dry and not glob.glob(os.path.join(ANS, "*.dat")) else load_answers()
+    mega = mega_due(cfg, day)
+    # The weekly mega draw counts the 7 nights ending tonight, so fetch posts for the whole week.
+    wstart = close - dt.timedelta(days=7) if mega else start
+    allposts, seen = find_posts(wstart, close, dry)
+    posts = [p for p in allposts if p[0] >= start]
+    entries, people, report = count_entries(posts, close, answers, me, cfg)
     print(f"Draw for {day} (posts {start:%d %b %I %p} to {close - dt.timedelta(hours=1):%d %b %I %p} IST, comments before {close:%d %b %I %p})")
     print("\n".join(report) or f"No posts found in the window ({seen} posts checked)")
     result = {"date": str(day), "posts_counted": len(posts), "people": len(people), "entries": len(entries),
               "drawn_at_ist": dt.datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")}
+    rng = secrets.SystemRandom()
     if entries:
-        u, key = secrets.SystemRandom().choice(entries)
+        u, key = rng.choice(entries)
         result.update(winner="@" + u, winning_entry=f"{key}:00 IST question")
     else:
         result["winner"] = None
+    if mega:
+        week, wpeople, wreport = count_entries(allposts, close, answers, me, cfg)
+        # Tonight's nightly winner can't also take the mega prize, unless nobody else entered.
+        pool = [e for e in week if "@" + e[0] != result.get("winner")] or week
+        prize = (cfg.get("mega_draw") or {}).get("prize", "₹200")
+        print(f"Weekly mega draw ({prize}): {len(allposts)} posts {wstart:%d %b} to {day:%d %b}, {len(wpeople)} people, {len(week)} entries")
+        result.update(mega_prize=prize, mega_posts=len(allposts), mega_people=len(wpeople), mega_entries=len(week))
+        if pool:
+            u, key = rng.choice(pool)
+            result.update(mega_winner="@" + u, mega_winning_entry=f"{key}:00 IST question")
+        else:
+            result["mega_winner"] = None
     if dry:
-        print("DRY RUN, nothing saved. Would record: " + json.dumps({k: v for k, v in result.items() if k not in ("winner", "winning_entry")}))
-        return
+        print("DRY RUN, nothing saved. Would record: " + json.dumps({k: v for k, v in result.items() if "winn" not in k}))
+        return result
     os.makedirs(os.path.join(ROOT, "draws"), exist_ok=True)
     json.dump(result, open(os.path.join(ROOT, "draws", f"{day}.json"), "w"), indent=1)
     print("RESULT " + json.dumps(result))
+    return result
 
 
 def main():
@@ -158,7 +218,7 @@ def main():
     if os.environ.get("DRAW_DATE"):
         return draw(dt.date.fromisoformat(os.environ["DRAW_DATE"]), dry)
     now = dt.datetime.now(IST)
-    first_day = json.load(open(os.path.join(ROOT, "config.json"))).get("draws_from", "9999-12-31")
+    first_day = load_cfg().get("draws_from", "9999-12-31")
     days = [now.date() - dt.timedelta(days=1)] + ([now.date()] if now.hour >= 22 else [])
     for day in days:
         if str(day) >= first_day and not os.path.exists(os.path.join(ROOT, "draws", f"{day}.json")):

@@ -25,11 +25,16 @@ h1{font-family:'Bricolage Grotesque';font-weight:800;font-size:${qs}px;line-heig
 <div class="meta"><div class="chip y">${esc(q.topic)}</div><div class="chip">${L.day}</div></div>
 <h1>${esc(q.q)}</h1><div class="opts">${q.o.map((o,k)=>`<div class="o"><span>${'ABCD'[k]}</span>${esc(o)}</div>`).join('')}</div>
 <div class="foot"><div class="cta">${story?'Answer <b>A, B, C or D</b> in the comments on our latest post':'Comment <b>A, B, C or D</b> · ₹100 winner at 10 PM'}</div><div class="small">Free to enter. We never ask for money, OTPs or passwords. @qwinnlive<br>Not sponsored, endorsed or administered by, or associated with, Instagram or Meta.</div></div></body></html>`;}
+// Weekly extras, matching config.json "tag_bonus" (Wednesdays from 18 Nov) and "mega_draw" (Fridays from 20 Nov).
+function extras(slot){const d=new Date(slot.split(' ')[0]+'T00:00:00Z');const iso=slot.slice(0,10);let x='';
+ if(d.getUTCDay()===3&&iso>='2026-11-18')x+='\n👯 Tag-a-friend day: tag a friend in your answer comment for a bonus entry (one bonus per post).';
+ if(iso>='2026-11-15')x+='\n🏆 Friday mega draw: a ₹200 gift card. Every correct answer from Saturday to Friday is an entry.';
+ return x;}
 function caption(q){const L=label(q.slot);const d=drawNote(q.slot);
  return `⏰ ${L.time} question | ${q.topic}
 
 💬 Comment your answer: A, B, C or D (one answer per person; your first comment counts).
-🎁 Every correct answer is one entry in the ₹100 gift card draw at 10 PM IST ${d.short} (${d.date}).
+🎁 Every correct answer is one entry in the ₹100 gift card draw at 10 PM IST ${d.short} (${d.date}). A winner every night!${extras(q.slot)}
 
 ${q.tags.join(' ')}`;}
 (async()=>{const b=await chromium.launch();const p=await b.newPage();let caps=[],csv=['file,slot_ist,slot_utc,topic,question,correct,correct_text'];
