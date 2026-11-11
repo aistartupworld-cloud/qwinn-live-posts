@@ -4,6 +4,7 @@
  "draws_from": "2026-11-05",
  "post_hours": [
   12,
-  21
- ]
+  20
+ ],
+ "post_every": 2
 }

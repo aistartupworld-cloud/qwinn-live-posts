@@ -71,6 +71,9 @@ def main():
     lo, hi = cfg.get("post_hours", [0, 23])
     if not lo <= slot.hour <= hi:
         print(f"{key} is outside posting hours {lo}:00 to {hi}:00 IST; skipping"); return
+    every = cfg.get("post_every", 1)
+    if (slot.hour - lo) % every:
+        print(f"{key}: posting only every {every} hours from {lo}:00 IST; skipping"); return
     if key > approved:
         print(f"{key} is after approved_through {approved}: waiting for owner approval; skipping"); return
     rel = f"posts/{slot:%Y-%m-%d}/{slot:%H}"
