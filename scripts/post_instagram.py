@@ -7,7 +7,7 @@ posts/<YYYY-MM-DD>/<HH>.jpg with the caption in posts/<YYYY-MM-DD>/<HH>.txt
 through the Instagram API with Instagram Login. Already-posted slots are kept
 in posted.json, so a rerun never double-posts.
 """
-import datetime as dt, json, os, sys, time, urllib.parse, urllib.request
+import datetime as dt, json, os, re, sys, time, urllib.parse, urllib.request
 
 API_IG = "https://graph.instagram.com/v26.0"   # tokens from "Instagram login" (start with IG)
 API_FB = "https://graph.facebook.com/v26.0"    # system-user / Facebook login tokens (start with EAA)
@@ -30,7 +30,11 @@ def call(method, path, **params):
         body = e.read().decode(errors="replace")
         tok = params.get("access_token")
         if tok: body = body.replace(tok, "***")
-        sys.exit(f"Instagram API error {e.code} on {path}: {body}")
+        print(f"Instagram API error {e.code} on {path}: {body}", file=sys.stderr)
+        # Instagram's "Action is blocked" / rate limits: exit 3 so the loop backs off for an hour
+        # instead of retrying every few minutes (repeated attempts can extend a block).
+        blocked = bool(re.search(r'"code":\s*4[,}]', body)) or "2207051" in body or "request limit" in body.lower()
+        sys.exit(3 if blocked else 1)
 
 
 def pick_slot(now):
@@ -65,6 +69,8 @@ def main():
         print("Past :44 of the hour; the next hour's post goes out after the hour starts"); return
     key = slot.strftime("%Y-%m-%d %H")
     cfg = json.load(open(os.path.join(ROOT, "config.json")))
+    if not os.environ.get("SLOT") and key <= cfg.get("paused_until", ""):
+        print(f"{key}: posting paused until {cfg['paused_until']} IST (config paused_until); skipping"); return
     start_at, approved = cfg.get("start_at", ""), cfg.get("approved_through", "")
     reel = f"posts/reels/{slot:%Y-%m-%d}/{slot:%H}"
     if os.path.exists(os.path.join(ROOT, reel + ".mp4")) and start_at <= key <= approved:
@@ -109,6 +115,10 @@ def publish(ig_id, token, repo, branch, dry, rel, key, video=False):
         if status == "FINISHED": break
         if status in ("ERROR", "EXPIRED"): sys.exit(f"Container {container} failed: {status}")
         time.sleep(20)
+    # Record the attempt BEFORE publishing. Instagram has published posts while still answering
+    # "Action is blocked", so a failed publish is never retried: retrying made duplicate posts.
+    log[key] = f"attempted {container}"
+    json.dump(log, open(log_path, "w"), indent=1, sort_keys=True)
     media = call("POST", f"{ig_id}/media_publish", creation_id=container, access_token=token)["id"]
     log[key] = media
     json.dump(log, open(log_path, "w"), indent=1, sort_keys=True)
