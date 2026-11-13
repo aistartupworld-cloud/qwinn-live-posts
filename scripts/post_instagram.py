@@ -115,6 +115,10 @@ def publish(ig_id, token, repo, branch, dry, rel, key, video=False):
         if status == "FINISHED": break
         if status in ("ERROR", "EXPIRED"): sys.exit(f"Container {container} failed: {status}")
         time.sleep(20)
+    # Record the attempt BEFORE publishing. Instagram has published posts while still answering
+    # "Action is blocked", so a failed publish is never retried: retrying made duplicate posts.
+    log[key] = f"attempted {container}"
+    json.dump(log, open(log_path, "w"), indent=1, sort_keys=True)
     media = call("POST", f"{ig_id}/media_publish", creation_id=container, access_token=token)["id"]
     log[key] = media
     json.dump(log, open(log_path, "w"), indent=1, sort_keys=True)

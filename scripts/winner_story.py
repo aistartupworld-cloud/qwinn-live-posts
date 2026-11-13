@@ -142,8 +142,10 @@ def main():
         if status == "FINISHED": break
         if status in ("ERROR", "EXPIRED"): sys.exit(f"Story container {container} failed: {status}")
         time.sleep(15)
-    media = P.call("POST", f"{ig_id}/media_publish", creation_id=container, access_token=token)["id"]
     log = json.load(open(log_path)) if os.path.exists(log_path) else {}
+    log[key] = f"attempted {container}"  # never retry a publish: Instagram may post despite an error
+    json.dump(log, open(log_path, "w"), indent=1, sort_keys=True)
+    media = P.call("POST", f"{ig_id}/media_publish", creation_id=container, access_token=token)["id"]
     log[key] = media
     json.dump(log, open(log_path, "w"), indent=1, sort_keys=True)
     print(f"Published winner Story for {day} as media {media}")
